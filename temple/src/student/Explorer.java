@@ -94,6 +94,14 @@ public class Explorer {
     private int maxX = 0;
     private int maxY = 0;
 
+    private int endX;
+    private int endY;
+
+    game.Node[][] nodeMaze;
+    boolean[][] wasHere;
+    boolean[][] path;
+    boolean[][] isWall;
+
     /**
      * Escape from the cavern before the ceiling collapses, trying to collect as much
      * gold as possible along the way. Your solution must ALWAYS escape before time runs
@@ -130,9 +138,10 @@ public class Explorer {
             pairs.add(new game.Pair<>(new Coord(x,y), node));
         }
 
-        game.Node[][] nodeMaze = new game.Node[maxX][maxY];
-        boolean[][] wasHere = new boolean[maxX][maxY];
-        boolean[][] path = new boolean[maxX][maxY];
+        nodeMaze = new game.Node[maxX][maxY];
+        wasHere = new boolean[maxX][maxY];
+        path = new boolean[maxX][maxY];
+        isWall = new boolean[maxX][maxY];
         for(game.Pair<Coord, game.Node> pair : pairs) {
             int x = pair.getFirst().x;
             int y = pair.getFirst().y;
@@ -140,7 +149,46 @@ public class Explorer {
             nodeMaze[x][y] = node;
             wasHere[x][y] = false;
             path[x][y] = false;
+            isWall[x][y] = node.getTile().getType().name().equals("WALL");
         }
+
+        game.Node start = state.getCurrentNode();
+        game.Node end = state.getExit();
+        int startX = start.getTile().getColumn();
+        int startY = start.getTile().getRow();
+        endX = end.getTile().getColumn();
+        endY = end.getTile().getRow();
+
+        boolean foundPath = findPath(startX, startY);
+
+    }
+
+    private boolean findPath(int x, int y) {
+        if (x == endX && y == endY) return true; // If you reached the end
+        if (isWall[x][y] || wasHere[x][y]) return false;
+        // If you are on a wall or already were here
+        wasHere[x][y] = true;
+        if (x != 0) // Checks if not on left edge
+            if (findPath(x-1, y)) { // Recalls method one to the left
+                path[x][y] = true; // Sets that path value to true;
+                return true;
+            }
+        if (x != maxX - 1) // Checks if not on right edge
+            if (findPath(x+1, y)) { // Recalls method one to the right
+                path[x][y] = true;
+                return true;
+            }
+        if (y != 0)  // Checks if not on top edge
+            if (findPath(x, y-1)) { // Recalls method one up
+                path[x][y] = true;
+                return true;
+            }
+        if (y != maxY- 1) // Checks if not on bottom edge
+            if (findPath(x, y+1)) { // Recalls method one down
+                path[x][y] = true;
+                return true;
+            }
+        return false;
     }
 
     private class Coord {

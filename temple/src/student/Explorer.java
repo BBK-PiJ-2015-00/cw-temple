@@ -2,8 +2,8 @@ package student;
 
 import game.EscapeState;
 import game.ExplorationState;
-import jdk.nashorn.internal.runtime.regexp.joni.constants.NodeStatus;
 
+import java.lang.reflect.Array;
 import java.util.*;
 
 public class Explorer {
@@ -11,7 +11,6 @@ public class Explorer {
     private LinkedList<Long> haveBeen = new LinkedList<>();
     private Stack<Long> pathStack = new Stack<>();
     private Stack<Long> forks = new Stack<>();
-    //private int lastForkIndex = -1;
 
     /**
      * Explore the cavern, trying to find the orb in as few steps as possible.
@@ -50,7 +49,7 @@ public class Explorer {
 
             //arraylist of neighbour id ordered by distance
             ArrayList<Long> neighbours = new ArrayList<>();
-            List<game.NodeStatus> temp = (ArrayList<game.NodeStatus>) state.getNeighbours();
+            List<game.NodeStatus> temp = (List<game.NodeStatus>) state.getNeighbours();
             Collections.sort(temp);
             temp.forEach(n -> neighbours.add(n.getId()));
 
@@ -61,7 +60,7 @@ public class Explorer {
                 case 0:
                     //go back to last fork
                     haveBeen.addFirst(current);
-                    goBack(state);
+                    goBackToLastFork(state);
                     break;
                 case 1:
                     //only one way to go
@@ -71,7 +70,6 @@ public class Explorer {
                     break;
                 default:
                     //save fork then move to neighbour closest to target
-                    //lastForkIndex++;
                     forks.push(current);
                     haveBeen.addFirst(current);
                     pathStack.push(current);
@@ -81,7 +79,7 @@ public class Explorer {
         }
     }
 
-    private void goBack(ExplorationState state) {
+    private void goBackToLastFork(ExplorationState state) {
 
         long lastFork = forks.pop();
         long there;
@@ -91,6 +89,10 @@ public class Explorer {
         }
         while(lastFork!=there);
     }
+
+    private List<game.Node> vertices;
+    private int maxX = 0;
+    private int maxY = 0;
 
     /**
      * Escape from the cavern before the ceiling collapses, trying to collect as much
@@ -116,6 +118,38 @@ public class Explorer {
      * @param state the information available at the current state
      */
     public void escape(EscapeState state) {
-        //TODO: Escape from the cavern before time runs out
+
+        vertices = (List<game.Node>) state.getVertices();
+        ArrayList<game.Pair<Coord, game.Node>> pairs = new ArrayList<>();
+
+        for(game.Node node : vertices) {
+            int x = node.getTile().getColumn();
+            int y = node.getTile().getColumn();
+            maxX = Math.max(x, maxX);
+            maxY = Math.max(x, maxY);
+            pairs.add(new game.Pair<>(new Coord(x,y), node));
+        }
+
+        game.Node[][] nodeMaze = new game.Node[maxX][maxY];
+        boolean[][] wasHere = new boolean[maxX][maxY];
+        boolean[][] path = new boolean[maxX][maxY];
+        for(game.Pair<Coord, game.Node> pair : pairs) {
+            int x = pair.getFirst().x;
+            int y = pair.getFirst().y;
+            game.Node node = pair.getSecond();
+            nodeMaze[x][y] = node;
+            wasHere[x][y] = false;
+            path[x][y] = false;
+        }
+    }
+
+    private class Coord {
+        public int x;
+        public int y;
+
+        Coord(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
     }
 }

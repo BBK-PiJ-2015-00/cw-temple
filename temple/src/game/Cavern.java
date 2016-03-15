@@ -94,7 +94,7 @@ public class Cavern {
 
     /**
      * Return a new random Cavern of size (rows, cols) with no gold.
-     * All edges have weight 1, and an orb is a reasonable distance from the exit.
+     * All edges have weight 1, and an orb is a  reasonable distancefrom the exit.
      * Use rand as a source of randomness for the cavern generation.
      */
     public static Cavern digExploreCavern(int rows, int cols, Random rand) {

@@ -21,7 +21,7 @@ import java.io.IOException;
  */
 public class MazePanel extends JPanel {
     private static final long serialVersionUID = 1L;
-    private static final String ROOT = "/Users/keith/CloudDocs/Courses/PiJ/BBK-PiJ-2015-16/cw-temple/res/";
+    private static final String ROOT = "C:/Users/Hijiri/Documents/MSc/PiJ/cw-temple/temple/res/";
 
     private static final String ORB_PATH = ROOT + "orb.png";           //Path to orb image
     private static final String PATH_PATH = ROOT + "path.png";         //Path to image representing path

@@ -2,8 +2,16 @@ package student;
 
 import game.EscapeState;
 import game.ExplorationState;
+import jdk.nashorn.internal.runtime.regexp.joni.constants.NodeStatus;
+
+import java.util.*;
 
 public class Explorer {
+
+    private LinkedList<Long> haveBeen = new LinkedList<>();
+    private Stack<Long> pathStack = new Stack<>();
+    private Stack<Long> forks = new Stack<>();
+    //private int lastForkIndex = -1;
 
     /**
      * Explore the cavern, trying to find the orb in as few steps as possible.
@@ -36,7 +44,52 @@ public class Explorer {
      * @param state the information available at the current state
      */
     public void explore(ExplorationState state) {
-        //TODO : Explore the cavern and find the orb
+
+        while (state.getDistanceToTarget()!=0) {
+            long current = state.getCurrentLocation();
+
+            //arraylist of neighbour id ordered by distance
+            ArrayList<Long> neighbours = new ArrayList<>();
+            List<game.NodeStatus> temp = (ArrayList<game.NodeStatus>) state.getNeighbours();
+            Collections.sort(temp);
+            temp.forEach(n -> neighbours.add(n.getId()));
+
+            //remove neighbours that explorer has been in
+            haveBeen.forEach(n -> neighbours.remove(n));
+
+            switch (neighbours.size()) {
+                case 0:
+                    //go back to last fork
+                    haveBeen.addFirst(current);
+                    goBack(state);
+                    break;
+                case 1:
+                    //only one way to go
+                    haveBeen.addFirst(current);
+                    pathStack.push(current);
+                    state.moveTo(neighbours.get(0));
+                    break;
+                default:
+                    //save fork then move to neighbour closest to target
+                    //lastForkIndex++;
+                    forks.push(current);
+                    haveBeen.addFirst(current);
+                    pathStack.push(current);
+                    state.moveTo(neighbours.get(0));
+                    break;
+            }
+        }
+    }
+
+    private void goBack(ExplorationState state) {
+
+        long lastFork = forks.pop();
+        long there;
+        do {
+            there = pathStack.pop();
+            state.moveTo(there);
+        }
+        while(lastFork!=there);
     }
 
     /**

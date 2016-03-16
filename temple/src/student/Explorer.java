@@ -90,17 +90,18 @@ public class Explorer {
         while(lastFork!=there);
     }
 
-    private List<game.Node> vertices;
+    private ArrayList<game.Node> vertices;
     private int maxX = 0;
     private int maxY = 0;
 
     private int endX;
     private int endY;
 
-    game.Node[][] nodeMaze;
-    boolean[][] wasHere;
-    boolean[][] path;
-    boolean[][] isWall;
+    private game.Node[][] nodeMaze;
+    private boolean[][] wasHere;
+    private boolean[][] path;
+    private boolean[][] isOpen;
+    private int[][] graph;
 
     /**
      * Escape from the cavern before the ceiling collapses, trying to collect as much
@@ -127,29 +128,50 @@ public class Explorer {
      */
     public void escape(EscapeState state) {
 
-        vertices = (List<game.Node>) state.getVertices();
+        vertices = new ArrayList<>(state.getVertices());
+        System.out.println("Size: " + vertices.size());
         ArrayList<game.Pair<Coord, game.Node>> pairs = new ArrayList<>();
 
         for(game.Node node : vertices) {
             int x = node.getTile().getColumn();
             int y = node.getTile().getColumn();
             maxX = Math.max(x, maxX);
-            maxY = Math.max(x, maxY);
+            maxY = Math.max(y, maxY);
             pairs.add(new game.Pair<>(new Coord(x,y), node));
         }
+        //add walls to graph
+        maxX+=2;
+        maxY+=2;
 
+        graph = new int[maxX][maxY];
         nodeMaze = new game.Node[maxX][maxY];
         wasHere = new boolean[maxX][maxY];
         path = new boolean[maxX][maxY];
-        isWall = new boolean[maxX][maxY];
+        isOpen = new boolean[maxX][maxY];
         for(game.Pair<Coord, game.Node> pair : pairs) {
-            int x = pair.getFirst().x;
-            int y = pair.getFirst().y;
+            int x = pair.getFirst().getX();
+            int y = pair.getFirst().getY();
             game.Node node = pair.getSecond();
-            nodeMaze[x][y] = node;
             wasHere[x][y] = false;
             path[x][y] = false;
-            isWall[x][y] = node.getTile().getType().name().equals("WALL");
+            nodeMaze[x][y] = node;
+            isOpen[x][y] = true;
+        }
+        for(int y = 0; y < maxY; y++) {
+            for(int x = 0; x < maxX; x++) {
+                System.out.print((isOpen[x][y])? 1 : 0);
+            }
+            System.out.print("\n");
+        }
+        for(int x = 0; x < maxX; x++) {
+            for(int y = 0; y < maxY; y++) {
+                if(x==0 || y==0 || x==maxX-1 || y==maxY-1) {
+                    wasHere[x][y] = false;
+                    path[x][y] = false;
+                    nodeMaze[x][y] = null;
+                    isOpen[x][y] = false;
+                }
+            }
         }
 
         game.Node start = state.getCurrentNode();
@@ -158,14 +180,75 @@ public class Explorer {
         int startY = start.getTile().getRow();
         endX = end.getTile().getColumn();
         endY = end.getTile().getRow();
+        nodeMaze[endX][endY] = end;
+        isOpen[endX][endY] = true;
 
-        boolean foundPath = findPath(startX, startY);
 
+        if(!findPath(startX, startY)) {
+            //throw some exception if cannot find path
+
+            throw new IllegalArgumentException("Could not find path");
+        }
+
+        for(int y = 0; y < maxY; y++) {
+            for(int x = 0; x < maxX; x++) {
+                String out = (path[x][y])? "o":"-";
+                System.out.print(out);
+            }
+            System.out.print("\n");
+        }
+
+        //walk path found
+        //walkPath(startX, startY, state);
+
+        int currentX = startX;
+        int currentY = startY;
+        while(currentX!=endX && currentY!=endY) {
+            if(currentX!=0 && path[currentX-1][currentY]) { //move left
+                state.moveTo(nodeMaze[currentX-1][currentY]);
+                continue;
+            }
+            if(currentX<maxX && path[currentX+1][currentY]) { //move right
+                state.moveTo(nodeMaze[currentX+1][currentY]);
+                continue;
+            }
+            if(currentY!=0 && path[currentX][currentY-1]) { //move up
+                state.moveTo(nodeMaze[currentX][currentY-1]);
+                continue;
+            }
+            if(currentY<maxY && path[currentX][currentY+1]) { //move down
+                state.moveTo(nodeMaze[currentX][currentY+1]);
+                continue;
+            }
+        }
     }
-
+    /*
+    private boolean walkPath(int x, int y, EscapeState state) {
+        if(x==endX && y==endY) {
+            return true;
+        }
+        if(x>0 && path[x-1][y]) {
+            state.moveTo(nodeMaze[x-1][y]);
+            return walkPath(x-1, y, state);
+        }
+        if(y>0 && path[x][y-1]) {
+            state.moveTo(nodeMaze[x][y-1]);
+            return walkPath(x, y-1, state);
+        }
+        if(x<maxX && path[x+1][y]) {
+            state.moveTo(nodeMaze[x+1][y]);
+            return walkPath(x+1, y, state);
+        }
+        if(y<maxY && path[x][y+1]) {
+            state.moveTo(nodeMaze[x][y+1]);
+            return walkPath(x, y+1, state);
+        }
+        return false;
+    }
+    */
     private boolean findPath(int x, int y) {
         if (x == endX && y == endY) return true; // If you reached the end
-        if (isWall[x][y] || wasHere[x][y]) return false;
+        if (!isOpen[x][y] || wasHere[x][y]) return false;
         // If you are on a wall or already were here
         wasHere[x][y] = true;
         if (x != 0) // Checks if not on left edge
@@ -173,7 +256,7 @@ public class Explorer {
                 path[x][y] = true; // Sets that path value to true;
                 return true;
             }
-        if (x != maxX - 1) // Checks if not on right edge
+        if (x != maxX-1) // Checks if not on right edge
             if (findPath(x+1, y)) { // Recalls method one to the right
                 path[x][y] = true;
                 return true;
@@ -183,7 +266,7 @@ public class Explorer {
                 path[x][y] = true;
                 return true;
             }
-        if (y != maxY- 1) // Checks if not on bottom edge
+        if (y != maxY-1) // Checks if not on bottom edge
             if (findPath(x, y+1)) { // Recalls method one down
                 path[x][y] = true;
                 return true;
@@ -191,13 +274,15 @@ public class Explorer {
         return false;
     }
 
-    private class Coord {
-        public int x;
-        public int y;
+    public class Coord {
+        private int x;
+        private int y;
 
-        Coord(int x, int y) {
+        public Coord(int x, int y) {
             this.x = x;
             this.y = y;
         }
+        public int getX() { return x; }
+        public int getY() { return y; }
     }
 }

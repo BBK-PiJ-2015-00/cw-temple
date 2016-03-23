@@ -2,6 +2,8 @@ package student;
 
 import game.EscapeState;
 import game.ExplorationState;
+import game.Node;
+import javafx.collections.transformation.SortedList;
 
 import java.lang.reflect.Array;
 import java.util.*;
@@ -90,19 +92,6 @@ public class Explorer {
         while(lastFork!=there);
     }
 
-    private ArrayList<game.Node> vertices;
-    private int maxX = 0;
-    private int maxY = 0;
-
-    private int endX;
-    private int endY;
-
-    private game.Node[][] nodeMaze;
-    private boolean[][] wasHere;
-    private boolean[][] path;
-    private boolean[][] isOpen;
-    private int[][] graph;
-
     /**
      * Escape from the cavern before the ceiling collapses, trying to collect as much
      * gold as possible along the way. Your solution must ALWAYS escape before time runs
@@ -128,161 +117,109 @@ public class Explorer {
      */
     public void escape(EscapeState state) {
 
-        vertices = new ArrayList<>(state.getVertices());
-        System.out.println("Size: " + vertices.size());
-        ArrayList<game.Pair<Coord, game.Node>> pairs = new ArrayList<>();
+        ArrayList<Node> vertices = new ArrayList<>(state.getVertices());
+        int maxX = 40;
+        int maxY = 25;
 
-        for(game.Node node : vertices) {
-            int x = node.getTile().getColumn();
-            int y = node.getTile().getColumn();
-            maxX = Math.max(x, maxX);
-            maxY = Math.max(y, maxY);
-            pairs.add(new game.Pair<>(new Coord(x,y), node));
-        }
-        //add walls to graph
-        maxX+=2;
-        maxY+=2;
+        Node start = state.getCurrentNode();
+        Node exit = state.getExit();
 
-        graph = new int[maxX][maxY];
-        nodeMaze = new game.Node[maxX][maxY];
-        wasHere = new boolean[maxX][maxY];
-        path = new boolean[maxX][maxY];
-        isOpen = new boolean[maxX][maxY];
-        for(game.Pair<Coord, game.Node> pair : pairs) {
-            int x = pair.getFirst().getX();
-            int y = pair.getFirst().getY();
-            game.Node node = pair.getSecond();
-            wasHere[x][y] = false;
-            path[x][y] = false;
-            nodeMaze[x][y] = node;
-            isOpen[x][y] = true;
-        }
-        for(int y = 0; y < maxY; y++) {
-            for(int x = 0; x < maxX; x++) {
-                System.out.print((isOpen[x][y])? 1 : 0);
+        ArrayList<Node> closedSet = new ArrayList<>();
+        ArrayList<Node> openSet = new ArrayList<>();
+        openSet.add(start);
+        openSet.add(exit);
+
+        Hashtable<Node, Node> cameFrom = new Hashtable<>();
+
+        //map all nodes to have gScore of 1000 which represents infinity
+        //start has a value of 0.
+        Hashtable<Node, Integer> gScore = new Hashtable<>(vertices.size()+1);
+        for (Node node : vertices) {
+            Integer value = 500;
+            if(node.equals(start)) {
+                value = 0;
             }
-            System.out.print("\n");
+            gScore.put(node, value);
         }
-        for(int x = 0; x < maxX; x++) {
-            for(int y = 0; y < maxY; y++) {
-                if(x==0 || y==0 || x==maxX-1 || y==maxY-1) {
-                    wasHere[x][y] = false;
-                    path[x][y] = false;
-                    nodeMaze[x][y] = null;
-                    isOpen[x][y] = false;
+
+        //map all nodes to have fScore of 1000 which represents infinity
+        //start has a value of the heuristic distance of start to exit.
+        Hashtable<Node, Integer> fScore = new Hashtable<>(vertices.size()+1);
+        for(Node node : vertices) {
+            Integer value = 500;
+            if(node.equals(start)) {
+                value = getHeuDist(start, exit);
+            }
+            fScore.put(node, value);
+        }
+
+        Stack<Node> path = new Stack<>();
+        System.out.println("Finding path.");
+        while(!openSet.isEmpty()) {
+
+            Iterator<Node> openSetIt = openSet.iterator();
+            Node current = openSetIt.next();
+            while(openSetIt.hasNext()) {
+                Node next = openSetIt.next();
+                current = (fScore.get(next) < fScore.get(current))? next : current;
+            }
+            if(current.equals(exit)) {
+                // end loop and build path
+                System.out.println("Generating path");
+                path.push(exit);
+                while(cameFrom.get(current) != null) {
+                    current = cameFrom.get(current);
+                    path.push(current);
                 }
+                break;
+            }
+            openSet.remove(current);
+            closedSet.add(current);
+            Set<Node> neighbours = current.getNeighbours();
+
+            for(Node neighbour : neighbours) {
+                if(closedSet.contains(neighbour)) {
+                    continue;
+                }
+                int temp_gScore = gScore.get(current) + 1;
+                if(!openSet.contains(neighbour)) {
+                    openSet.add(neighbour);
+                }
+                else if (temp_gScore >= gScore.get(neighbour)) {
+                    continue;
+                }
+
+                cameFrom.put(neighbour, current);
+                gScore.put(neighbour, temp_gScore);
+                fScore.put(neighbour, temp_gScore + getHeuDist(neighbour, exit));
             }
         }
 
-        game.Node start = state.getCurrentNode();
-        game.Node end = state.getExit();
-        int startX = start.getTile().getColumn();
-        int startY = start.getTile().getRow();
-        endX = end.getTile().getColumn();
-        endY = end.getTile().getRow();
-        nodeMaze[endX][endY] = end;
-        isOpen[endX][endY] = true;
-
-
-        if(!findPath(startX, startY)) {
-            //throw some exception if cannot find path
-
-            throw new IllegalArgumentException("Could not find path");
+        //walk path
+        System.out.println("Walking path");
+        path.pop();
+        try  {
+            state.pickUpGold();
+        } catch (IllegalStateException ex) {
+            //do nothing
         }
-
-        for(int y = 0; y < maxY; y++) {
-            for(int x = 0; x < maxX; x++) {
-                String out = (path[x][y])? "o":"-";
-                System.out.print(out);
-            }
-            System.out.print("\n");
-        }
-
-        //walk path found
-        //walkPath(startX, startY, state);
-
-        int currentX = startX;
-        int currentY = startY;
-        while(currentX!=endX && currentY!=endY) {
-            if(currentX!=0 && path[currentX-1][currentY]) { //move left
-                state.moveTo(nodeMaze[currentX-1][currentY]);
-                continue;
-            }
-            if(currentX<maxX && path[currentX+1][currentY]) { //move right
-                state.moveTo(nodeMaze[currentX+1][currentY]);
-                continue;
-            }
-            if(currentY!=0 && path[currentX][currentY-1]) { //move up
-                state.moveTo(nodeMaze[currentX][currentY-1]);
-                continue;
-            }
-            if(currentY<maxY && path[currentX][currentY+1]) { //move down
-                state.moveTo(nodeMaze[currentX][currentY+1]);
-                continue;
+        while(!path.isEmpty()) {
+            state.moveTo(path.pop());
+            try  {
+                state.pickUpGold();
+            } catch (IllegalStateException ex) {
+                //do nothing
             }
         }
     }
-    /*
-    private boolean walkPath(int x, int y, EscapeState state) {
-        if(x==endX && y==endY) {
-            return true;
-        }
-        if(x>0 && path[x-1][y]) {
-            state.moveTo(nodeMaze[x-1][y]);
-            return walkPath(x-1, y, state);
-        }
-        if(y>0 && path[x][y-1]) {
-            state.moveTo(nodeMaze[x][y-1]);
-            return walkPath(x, y-1, state);
-        }
-        if(x<maxX && path[x+1][y]) {
-            state.moveTo(nodeMaze[x+1][y]);
-            return walkPath(x+1, y, state);
-        }
-        if(y<maxY && path[x][y+1]) {
-            state.moveTo(nodeMaze[x][y+1]);
-            return walkPath(x, y+1, state);
-        }
-        return false;
-    }
-    */
-    private boolean findPath(int x, int y) {
-        if (x == endX && y == endY) return true; // If you reached the end
-        if (!isOpen[x][y] || wasHere[x][y]) return false;
-        // If you are on a wall or already were here
-        wasHere[x][y] = true;
-        if (x != 0) // Checks if not on left edge
-            if (findPath(x-1, y)) { // Recalls method one to the left
-                path[x][y] = true; // Sets that path value to true;
-                return true;
-            }
-        if (x != maxX-1) // Checks if not on right edge
-            if (findPath(x+1, y)) { // Recalls method one to the right
-                path[x][y] = true;
-                return true;
-            }
-        if (y != 0)  // Checks if not on top edge
-            if (findPath(x, y-1)) { // Recalls method one up
-                path[x][y] = true;
-                return true;
-            }
-        if (y != maxY-1) // Checks if not on bottom edge
-            if (findPath(x, y+1)) { // Recalls method one down
-                path[x][y] = true;
-                return true;
-            }
-        return false;
-    }
 
-    public class Coord {
-        private int x;
-        private int y;
+    private int getHeuDist(Node a, Node b) {
 
-        public Coord(int x, int y) {
-            this.x = x;
-            this.y = y;
-        }
-        public int getX() { return x; }
-        public int getY() { return y; }
+        int aX = a.getTile().getColumn();
+        int aY = a.getTile().getRow();
+        int bX = b.getTile().getColumn();
+        int bY = b.getTile().getRow();
+
+        return (int) Math.sqrt((aX-bX)*(aX-bX) + (aY-bY)*(aY-bY));
     }
 }
